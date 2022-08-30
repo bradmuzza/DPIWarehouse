@@ -1,0 +1,8 @@
+{
+    "User": "bradmurray",
+    "Password" : "welcome2BCG!",
+    "Host" : "outcomereportingserver.database.windows.net",
+    "Port" :"1433",
+    "DataBase":"OutcomeReporting"
+
+}

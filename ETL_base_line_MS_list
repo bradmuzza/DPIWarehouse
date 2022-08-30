@@ -1,0 +1,139 @@
+#%%
+from datetime import datetime
+from os import rename
+from matplotlib.pyplot import axis
+from pip import main
+from requests import delete
+import sqlalchemy 
+import DBconnection as DB
+import Datahelper
+import pandas as pd
+from sqlalchemy import column, insert, true
+from sqlalchemy import delete
+from sqlalchemy import update
+import win32com.client
+import time
+
+def get_basline_data_from_list(*args):
+        # Need to refreashing in power query before start
+        for url in args:
+            xl = win32com.client.DispatchEx("Excel.Application")
+            wb = xl.workbooks.open(url )
+            xl.Visible = True
+            wb.RefreshAll()
+            xl.CalculateUntilAsyncQueriesDone()
+            wb.Save()
+            wb.Close(True)
+            xl.Quit()
+            
+def save_new_records_to_temp(table_name, dataframe,eng, prefix='Snapshot'):
+         return dataframe.to_sql(prefix+table_name,eng,index=True,if_exists='append', schema='raw')
+     
+def get_data_from_excel(source_url):
+        df = pd.read_excel(source_url)
+        return df
+
+def save_raw_excel(df, filename): 
+    root =r"c:\Users\murrab01\OneDrive - DPIE\Documents\Data\Raw"
+    df.to_excel(root+'\\'+filename+'.xlsx')
+    
+
+class ETL_data_loader:
+    
+    def __init__(self, eng,report_cycle, BaseDateDf, MonthlyDataDf)  -> None:
+        self.BaseDateDf = BaseDateDf
+        self.MonthlyDataDf = MonthlyDataDf
+        self.con:sqlalchemy.engine = eng
+        self.report_cycle = report_cycle
+        self.Insert_date = Datahelper.get_insert_date()
+    
+    def sql_exectue(self,sql):
+        with self.con.begin() as eng:
+            eng.execute(sql)
+
+    def clean_source_baseline(self):
+        self.BaseDateDf['UpdateDate'] = self.Insert_date
+        self.BaseDateDf['Source'] ='MS list'
+
+    
+    def clean_source_monthly(self):        
+        MonthlyDataDf = self.MonthlyDataDf.rename(columns={"Title":"Measure","MeaurementInterval":"MeasurementInterval"})
+        MonthlyDataDf['UpdateDate'] = self.Insert_date
+      
+    
+    def save_new_records_baseine_to_dB(self):
+        save_new_records_to_temp("BaseLineMeasures", self.BaseDateDf,eng, prefix='Snapshot')
+        
+    def save_new_records_monthly_to_dB(self):
+        save_new_records_to_temp("BaseLineMeasures", self.BaseDateDf,eng, prefix='Snapshot')
+        
+    def run_DB_ELT_script(self):
+             self.sql_exectue(f" Exec dbo.ProcRunELT @reportCycle = '{self.report_cycle}'")
+ 
+# def Update_all_reporting_cylce():
+#     eng = DB.get_engine() 
+#     Monthly_data_table = "MonthlyData"
+#     report_cycle = "202401"
+#     report_cycles = ["202204", "202203","202204",'202205', "202206", "202207","202208", "202209","202210","202211","202212",
+#                     "202301", "202302","202303", "202304","202305","202307","202308",
+#                     "202309", "202310", "202311", "202312","202401","202402","202403",'202404',"202405","202406" ,"202407", "202408"]
+#     for cycle in report_cycles:
+#         monthly_measure_url= r"c:\Users\murrab01\OneDrive - DPIE\Documents\Data\Monthly Data Table ETL powerquerylist.xlsx"
+#         ETL_loader_Monthly = ETL_data_loader(eng,Monthly_data_table, monthly_measure_url, cycle)
+#         #df_source_monthly = ETL_loader_Monthly.get_basline_data_from_list()
+#         df_source_monthly = ETL_loader_Monthly.get_basline_data_from_excel()
+#         df_source_monthly = ETL_loader_Monthly.clean_source(df_source_monthly)
+#         ETL_loader_Monthly.save_new_records_to_temp(df_source_monthly)
+#         ETL_loader_Monthly.update_source_table()
+#%%
+# if __name__ == "__main__":  
+#     ## use for bulk updating monthly data 
+#     Update_all_reporting_cylce()         
+
+#%%
+if __name__ == "__main__":
+    # Base_line_table  = "BaseLineMeasures"
+    # report_cycle = "202204"
+    # eng = DB.get_engine() 
+    # baseline_url = r"c:\Users\murrab01\OneDrive - DPIE\Documents\Data\Base Data Table ETL powerquerylist.xlsx"
+    # ETL_loader_BaseLine= ETL_data_loader(eng, Base_line_table, baseline_url,report_cycle)
+    # df_source = ETL_loader_BaseLine.get_basline_data_from_list()
+    # df_source = ETL_loader_BaseLine.clean_source(df_source)
+    # ETL_loader_BaseLine.save_new_records_to_temp(df_source)
+    # ETL_loader_BaseLine.update_source_table()
+#%%
+# if __name__ == "__main__":
+#     eng = DB.get_engine() 
+#     Monthly_data_table = "MonthlyData"
+#     report_cycle = "202207"
+   
+#     monthly_measure_url= r"c:\Users\murrab01\OneDrive - DPIE\Documents\Data\Monthly Data Table ETL powerquerylist.xlsx"
+#     ETL_loader_Monthly = ETL_data_loader(eng,Monthly_data_table, monthly_measure_url, report_cycle)
+#     df_source_monthly = ETL_loader_Monthly.get_basline_data_from_list()
+#     #df_source_monthly = ETL_loader_Monthly.get_basline_data_from_excel()
+#     df_source_monthly = ETL_loader_Monthly.clean_source(df_source_monthly)
+#     ETL_loader_Monthly.save_new_records_to_temp(df_source_monthly)
+#     ETL_loader_Monthly.update_source_table()
+#%%
+if __name__ == "__main__":
+    eng = DB.get_engine() 
+    report_cycle = "202207"
+    baseline_url = r"c:\Users\murrab01\OneDrive - DPIE\Documents\Data\Base Data Table ETL powerquerylist.xlsx"
+    monthly_measure_url= r"c:\Users\murrab01\OneDrive - DPIE\Documents\Data\Monthly Data Table ETL powerquerylist.xlsx"
+    # get_basline_data_from_list(baseline_url,monthly_measure_url)
+    base_df  = get_data_from_excel(baseline_url)
+    monthly_df = get_data_from_excel(monthly_measure_url)
+    time = datetime.now().strftime("_%d-%m-%Y_%H-%M-%S")
+    save_raw_excel(base_df,"BaseRaw"+time)
+    save_raw_excel(monthly_df,"MonthlyRaw"+time)
+    loader=  ETL_data_loader(eng,report_cycle,base_df,monthly_df)
+    loader.clean_source_baseline()
+    loader.clean_source_monthly()
+    loader.save_new_records_baseine_to_dB()
+    loader.save_new_records_monthly_to_dB()
+    loader.run_DB_ELT_script()
+    
+    
+   
+#%%
+
