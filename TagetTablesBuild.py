@@ -44,7 +44,11 @@ def delete_existing_cycle_records(report_cycle, eng):
     """
     sql_exectue(sql,eng)
     
-    
+def sql_commit(sql,con):
+        with con.raw_connection().cursor() as eng:
+            eng.execute(sql)
+            
+
             
 
 def update_target_forecast(dataframe, report_cycle,forecastStartText):
@@ -89,6 +93,13 @@ def update_target_forecast(dataframe, report_cycle,forecastStartText):
         # change to if_Exist= "append"
         df_target.to_sql("TargetForecasts", con=eng, schema="Staging",if_exists="append")
 
+def run(report_cycle): 
+    eng = DB.get_engine() 
+    delete_existing_cycle_records(report_cycle,eng)
+    Sql_last = "select * from [Staging].[TargetFirstBaselineView] where BaseDate is not null"
+    df=pd.read_sql(sql=Sql_last,con=eng)
+    update_target_forecast(df,report_cycle,'First BaseLine')
+    
 # %%
 if __name__ == "__main__":
     report_cycle = "202207"
@@ -102,7 +113,6 @@ if __name__ == "__main__":
     report_cycle = "202207"
     eng = DB.get_engine()  
     sql_first = "select * from Staging.TargetLastBaselineView "
-    
     df=pd.read_sql(sql=sql_first,con=eng)
     update_target_forecast(df,report_cycle,'Historical')
     

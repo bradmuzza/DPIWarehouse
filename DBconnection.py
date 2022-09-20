@@ -12,6 +12,8 @@ def get_engine():
     eng =create_engine(url)
     return eng
 
+if __name__ == "__main__":
+     print("CCCCCC")
 
 
 
